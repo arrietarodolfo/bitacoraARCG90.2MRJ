@@ -33,7 +33,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('clear-form').addEventListener('click', clearForm);
     document.getElementById('clear-all').addEventListener('click', clearAllEvents);
     document.getElementById('export-now').addEventListener('click', exportToCSV);
-    document.getElementById('save-draft').addEventListener('click', manualSaveDraft);
+    const exportBitacoraBtn = document.getElementById('export-bitacora');
+    if (exportBitacoraBtn) {
+        exportBitacoraBtn.addEventListener('click', exportBitacora);
+    }
     document.getElementById('restoreDraft').addEventListener('click', restoreDraft);
     document.getElementById('discardDraft').addEventListener('click', discardDraft);
     
@@ -200,13 +203,12 @@ function autoSaveDraft() {
     }
 }
 
-// Guardado manual del borrador
-function manualSaveDraft() {
-    autoSaveDraft();
-    showNotification('Borrador guardado automáticamente', 'info');
+// Exportar bitácora (descargar CSV)
+function exportBitacora() {
+    exportToCSV();
 }
 
-// Guardar evento final (con CSV)
+// Guardar evento (sin exportar CSV)
 function saveFinalEvent(e) {
     e.preventDefault();
     
@@ -231,7 +233,7 @@ function saveFinalEvent(e) {
         return;
     }
     
-    // Crear objeto de evento final
+    // Crear objeto de evento
     const event = {
         id: Date.now(), // ID único basado en timestamp
         date: formData.date,
@@ -251,17 +253,14 @@ function saveFinalEvent(e) {
     // Limpiar borrador
     clearDraft();
     
-            // Actualizar la interfaz
-            currentPage = 1; // Resetear a primera página
-            applyFiltersAndRender();
-            updateStatistics();
-            clearForm();
-    
-    // Exportar a CSV automáticamente
-    exportToCSV();
+    // Actualizar la interfaz
+    currentPage = 1; // Resetear a primera página
+    applyFiltersAndRender();
+    updateStatistics();
+    clearForm();
     
     // Mostrar notificación
-    showNotification('Evento guardado y exportado a CSV');
+    showNotification('Evento guardado exitosamente');
     
     // Mostrar indicador de guardado exitoso
     showSaveIndicator('saved');
@@ -572,8 +571,8 @@ function renderEvents(filteredEvents = null) {
                 <div class="event-title">${escapeHtml(event.title)}</div>
                 <div class="event-desc">${escapeHtml(event.description)}</div>
                 <div class="event-actions">
-                    <button class="btn btn-delete" onclick="deleteEvent(${event.id})">
-                        <i class="fas fa-trash"></i> Eliminar
+                    <button class="btn btn-delete" onclick="deleteEvent(${event.id})" title="Eliminar evento">
+                        <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </div>
@@ -833,12 +832,10 @@ function updateStatistics() {
     const total = events.length;
     const today = new Date().toISOString().split('T')[0];
     const todayEvents = events.filter(event => event.date === today).length;
-    const deliveries = events.filter(event => event.type === 'delivery').length;
     const incidents = events.filter(event => event.type === 'incident').length;
     
     document.getElementById('total-events').textContent = total;
     document.getElementById('today-events').textContent = todayEvents;
-    document.getElementById('delivery-count').textContent = deliveries;
     document.getElementById('incident-count').textContent = incidents;
 }
 
