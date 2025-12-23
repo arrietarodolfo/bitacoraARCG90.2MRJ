@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitácora de Entregas - Autoguardado Real</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-truck"></i>
+            </div>
+            <h1>Bitácora de Entregas <span id="draftBadge" class="draft-badge" style="display: none;">
+                <i class="fas fa-edit"></i> Borrador
+            </span></h1>
+            <p>Registro de eventos con autoguardado automático. No pierdas tus datos aunque cierres el navegador.</p>
+            <div class="save-indicator" id="saveIndicator">
+                <i class="fas fa-check"></i>
+                <span>Guardado</span>
+            </div>
+        </header>
+        
+        <div class="statistics">
+            <div class="stat-card">
+                <div class="stat-number" id="total-events">0</div>
+                <div class="stat-label">Eventos Registrados</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="today-events">0</div>
+                <div class="stat-label">Eventos Hoy</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="delivery-count">0</div>
+                <div class="stat-label">Entregas Completadas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="incident-count">0</div>
+                <div class="stat-label">Incidencias Reportadas</div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="card">
+                <h2><i class="fas fa-plus-circle"></i> Registrar Nuevo Evento</h2>
+                
+                <!-- Sección de borrador recuperado -->
+                <div id="draftSection" class="draft-section" style="display: none;">
+                    <h4><i class="fas fa-history"></i> Borrador Recuperado</h4>
+                    <p>Tenemos un borrador no guardado de tu última sesión. ¿Quieres recuperarlo?</p>
+                    <div class="draft-actions">
+                        <button id="restoreDraft" class="btn btn-warning">
+                            <i class="fas fa-redo"></i> Recuperar Borrador
+                        </button>
+                        <button id="discardDraft" class="btn btn-delete">
+                            <i class="fas fa-trash"></i> Descartar
+                        </button>
+                    </div>
+                </div>
+                
+                <form id="event-form">
+                    <div class="form-group">
+                        <label for="event-title"><i class="fas fa-heading"></i> Título del Evento</label>
+                        <input type="text" id="event-title" placeholder="Ej: Entrega compleja en edificio corporativo" required data-autosave>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="event-date"><i class="far fa-calendar-alt"></i> Fecha del Evento</label>
+                        <input type="date" id="event-date" required data-autosave>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="event-type"><i class="fas fa-tag"></i> Tipo de Evento</label>
+                        <select id="event-type" required data-autosave>
+                            <option value="">Seleccionar tipo</option>
+                            <option value="delivery">Entrega exitosa</option>
+                            <option value="incident">Incidente/Problema</option>
+                            <option value="observation">Observación</option>
+                            <option value="other">Otro</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="event-route"><i class="fas fa-route"></i> Ruta (opcional)</label>
+                        <input type="text" id="event-route" placeholder="Ej: Ruta Centro, Ruta Norte" data-autosave>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="event-desc"><i class="fas fa-align-left"></i> Descripción</label>
+                        <textarea id="event-desc" placeholder="Describe con detalle lo ocurrido..." required data-autosave></textarea>
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-success" id="save-button">
+                            <i class="fas fa-save"></i> Guardar Evento Final
+                        </button>
+                        
+                        <button type="button" id="clear-form" class="btn">
+                            <i class="fas fa-eraser"></i> Limpiar Todo
+                        </button>
+                        
+                        <button type="button" id="save-draft" class="btn btn-warning">
+                            <i class="fas fa-save"></i> Solo Guardar Borrador
+                        </button>
+                    </div>
+                    
+                    <div class="auto-save-notice">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Autoguardado activado - Los cambios se guardan automáticamente mientras escribes</span>
+                    </div>
+                </form>
+                
+                <div class="csv-info">
+                    <h4><i class="fas fa-file-csv"></i> Exportación Automática</h4>
+                    <p>Al guardar el evento final, se descargará automáticamente un archivo CSV. Te recomendamos guardarlo en una carpeta llamada <strong>storage</strong>.</p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="filters">
+                    <div class="filter-group search-group">
+                        <label for="search-input"><i class="fas fa-search"></i> Buscar Eventos</label>
+                        <input type="text" id="search-input" placeholder="Buscar en título, descripción o ruta...">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-date"><i class="fas fa-filter"></i> Filtrar por Fecha</label>
+                        <input type="date" id="filter-date">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-type"><i class="fas fa-filter"></i> Filtrar por Tipo</label>
+                        <select id="filter-type">
+                            <option value="">Todos los tipos</option>
+                            <option value="delivery">Entrega exitosa</option>
+                            <option value="incident">Incidente/Problema</option>
+                            <option value="observation">Observación</option>
+                            <option value="other">Otro</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="filter-actions">
+                    <button id="clear-filters" class="btn" style="display: none;">
+                        <i class="fas fa-times"></i> Limpiar Filtros
+                    </button>
+                    <div class="results-count" id="results-count"></div>
+                </div>
+                
+                <h2><i class="fas fa-list"></i> Eventos Registrados</h2>
+                
+                <!-- Controles de paginación superior -->
+                <div class="pagination-controls-top" id="pagination-controls-top" style="display: none;">
+                    <div class="pagination-info">
+                        <span id="pagination-info-text">Mostrando 0-0 de 0 eventos</span>
+                    </div>
+                    <div class="pagination-buttons">
+                        <button id="prev-page" class="btn" disabled>
+                            <i class="fas fa-chevron-left"></i> Anterior
+                        </button>
+                        <div class="page-numbers" id="page-numbers"></div>
+                        <button id="next-page" class="btn" disabled>
+                            Siguiente <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="events-list" id="events-list">
+                    <!-- Los eventos se cargarán aquí dinámicamente -->
+                    <div class="empty-state">
+                        <i class="fas fa-clipboard-list"></i>
+                        <h3>No hay eventos registrados</h3>
+                        <p>Comienza agregando tu primer evento usando el formulario.</p>
+                    </div>
+                </div>
+                
+                <!-- Controles de paginación inferior -->
+                <div class="pagination-controls-bottom" id="pagination-controls-bottom" style="display: none;">
+                    <div class="pagination-info">
+                        <span id="pagination-info-text-bottom">Mostrando 0-0 de 0 eventos</span>
+                    </div>
+                    <div class="pagination-buttons">
+                        <button id="prev-page-bottom" class="btn" disabled>
+                            <i class="fas fa-chevron-left"></i> Anterior
+                        </button>
+                        <div class="page-numbers" id="page-numbers-bottom"></div>
+                        <button id="next-page-bottom" class="btn" disabled>
+                            Siguiente <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    <div class="items-per-page">
+                        <label for="items-per-page-select">Eventos por página:</label>
+                        <select id="items-per-page-select">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="0">Todos</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Sección de importación CSV -->
+                <div class="import-section">
+                    <h4><i class="fas fa-file-upload"></i> Importar Eventos desde CSV</h4>
+                    <p>Selecciona un archivo CSV con el formato correcto para importar eventos.</p>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="import-csv-file" accept=".csv" style="display: none;">
+                        <label for="import-csv-file" class="file-input-label">
+                            <i class="fas fa-file-csv"></i> Seleccionar archivo CSV
+                        </label>
+                    </div>
+                    <div class="import-progress" id="import-progress">
+                        <p>Procesando archivo...</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill" style="width: 0%">0%</div>
+                        </div>
+                    </div>
+                    <div class="import-summary" id="import-summary"></div>
+                </div>
+                
+                <div class="btn-group">
+                    <button id="export-now" class="btn btn-warning">
+                        <i class="fas fa-download"></i> Exportar CSV Ahora
+                    </button>
+                    
+                    <button id="clear-all" class="btn btn-delete">
+                        <i class="fas fa-trash-alt"></i> Eliminar Todos
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Bitácora de Entregas &copy; <span id="current-year">2023</span> - Sistema de gestión de rutas de paquetes</p>
+            <p>Autoguardado activo - Los datos se recuperan automáticamente al recargar</p>
+        </footer>
+    </div>
+    
+    <div class="notification" id="notification">
+        <i class="fas fa-check-circle"></i>
+        <span id="notification-text">Evento guardado exitosamente</span>
+    </div>
+    
+    <script src="js/script.js"></script>
+</body>
+</html>
