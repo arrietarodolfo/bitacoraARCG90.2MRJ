@@ -3,12 +3,12 @@ let events = [];
 let currentDraft = null;
 let autoSaveTimeout = null;
 
-// Variables de paginación y búsqueda
-let currentPage = 1;
-let itemsPerPage = 20;
+// Variables de scroll infinito y búsqueda
+let visibleEventsCount = 20; // Eventos visibles inicialmente
 let filteredEvents = [];
 let searchQuery = '';
 let editingEventId = null; // ID del evento que se está editando
+let isLoadingMore = false; // Flag para evitar múltiples cargas simultáneas
 
 // Claves de almacenamiento
 const STORAGE_KEYS = {
@@ -28,6 +28,39 @@ document.addEventListener('DOMContentLoaded', function() {
     loadEvents();
     checkForDraft();
     updateStatistics();
+    
+    // Configurar toggle del formulario
+    const toggleFormBtn = document.getElementById('toggle-form-btn');
+    const formContent = document.getElementById('form-content');
+    const formCard = document.getElementById('form-card');
+    if (toggleFormBtn && formContent && formCard) {
+        toggleFormBtn.addEventListener('click', function() {
+            const isVisible = formContent.style.display !== 'none';
+            
+            if (isVisible) {
+                // Colapsar: ocultar contenido y minimizar card
+                formContent.style.display = 'none';
+                formCard.classList.add('card-form-collapsed');
+                formCard.style.padding = '0';
+                formCard.style.height = '0';
+                formCard.style.marginBottom = '0';
+                toggleFormBtn.classList.remove('active');
+            } else {
+                // Expandir: mostrar contenido y restaurar card
+                formCard.classList.remove('card-form-collapsed');
+                formCard.style.padding = '25px';
+                formCard.style.height = 'auto';
+                formCard.style.marginBottom = '20px';
+                formContent.style.display = 'block';
+                toggleFormBtn.classList.add('active');
+                
+                // Scroll suave hacia el formulario
+                setTimeout(() => {
+                    formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+        });
+    }
     
     // Configurar eventos del formulario
     document.getElementById('event-form').addEventListener('submit', saveFinalEvent);
@@ -74,23 +107,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Configurar paginación
-    const prevPageBtn = document.getElementById('prev-page');
-    const nextPageBtn = document.getElementById('next-page');
-    const prevPageBtnBottom = document.getElementById('prev-page-bottom');
-    const nextPageBtnBottom = document.getElementById('next-page-bottom');
-    const itemsPerPageSelect = document.getElementById('items-per-page-select');
-    
-    if (prevPageBtn) prevPageBtn.addEventListener('click', () => goToPage(currentPage - 1));
-    if (nextPageBtn) nextPageBtn.addEventListener('click', () => goToPage(currentPage + 1));
-    if (prevPageBtnBottom) prevPageBtnBottom.addEventListener('click', () => goToPage(currentPage - 1));
-    if (nextPageBtnBottom) nextPageBtnBottom.addEventListener('click', () => goToPage(currentPage + 1));
-    if (itemsPerPageSelect) {
-        itemsPerPageSelect.addEventListener('change', (e) => {
-            itemsPerPage = parseInt(e.target.value) || events.length;
-            currentPage = 1;
-            applyFiltersAndRender();
-        });
-    }
+    // Configurar scroll infinito después de cargar eventos
+    setTimeout(() => {
+        setupInfiniteScroll();
+    }, 500);
     
     // Configurar autoguardado cuando se cierra la pestaña
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -263,6 +283,13 @@ function saveFinalEvent(e) {
         showNotification('Evento guardado exitosamente');
     }
     
+    // Ordenar eventos por fecha y hora de creación (más reciente primero)
+    events.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(a.date + 'T00:00:00');
+        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(b.date + 'T00:00:00');
+        return dateB - dateA; // Más reciente primero
+    });
+    
     // Guardar en localStorage
     saveEventsToStorage();
     
@@ -273,7 +300,7 @@ function saveFinalEvent(e) {
     cancelEdit();
     
     // Actualizar la interfaz
-    currentPage = 1; // Resetear a primera página
+    visibleEventsCount = 20; // Resetear contador
     applyFiltersAndRender();
     updateStatistics();
     clearForm();
@@ -605,15 +632,21 @@ function exportToCSV() {
     showNotification(`CSV exportado: ${filename}. Guárdalo en la carpeta "storage".`);
 }
 
-// Función para renderizar eventos
-function renderEvents(filteredEvents = null) {
+// Función para renderizar eventos con scroll infinito
+function renderEvents(filteredEvents = null, append = false) {
     const eventsList = document.getElementById('events-list');
     const eventsToRender = filteredEvents || events;
     
-    // Ordenar eventos por fecha (más reciente primero)
-    eventsToRender.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Ordenar eventos por fecha y hora de creación (más reciente primero)
+    eventsToRender.sort((a, b) => {
+        // Usar createdAt si existe, si no usar date con hora actual
+        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(a.date + 'T00:00:00');
+        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(b.date + 'T00:00:00');
+        return dateB - dateA; // Más reciente primero
+    });
     
-            if (eventsToRender.length === 0) {
+    // Si no hay eventos, mostrar mensaje
+    if (eventsToRender.length === 0) {
         if (events.length === 0) {
             eventsList.innerHTML = `
                 <div class="empty-state">
@@ -634,14 +667,47 @@ function renderEvents(filteredEvents = null) {
                 </div>
             `;
         }
+        visibleEventsCount = 20; // Resetear contador
         return;
     }
     
-    let html = '';
+    // Calcular cuántos eventos mostrar
+    let startIndex, endIndex;
+    if (append) {
+        // En modo append, agregar los siguientes 20 eventos
+        startIndex = visibleEventsCount - 20; // Ya mostramos hasta aquí
+        endIndex = Math.min(visibleEventsCount, eventsToRender.length);
+    } else {
+        // En modo normal, mostrar desde el inicio
+        startIndex = 0;
+        endIndex = Math.min(20, eventsToRender.length);
+        visibleEventsCount = 20; // Resetear contador
+    }
     
-    eventsToRender.forEach(event => {
+    const eventsToShow = eventsToRender.slice(startIndex, endIndex);
+    
+    // Si no hay eventos para mostrar y estamos en modo append, no hacer nada
+    if (append && eventsToShow.length === 0) {
+        isLoadingMore = false;
+        return;
+    }
+    
+    // Si no es append, limpiar y mostrar desde el inicio
+    let html = '';
+    if (append) {
+        // En modo append, mantener el HTML existente y agregar al final
+        html = eventsList.innerHTML;
+        // Remover el indicador de carga si existe
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.remove();
+        }
+    }
+    
+    eventsToShow.forEach(event => {
         // Formatear fecha para mostrar
-        const formattedDate = formatDate(event.date);
+        // Formatear fecha y hora de creación
+        const formattedDate = formatDateWithTime(event.date, event.createdAt);
         
         // Determinar la clase del tipo de evento
         let typeClass = '';
@@ -701,6 +767,76 @@ function renderEvents(filteredEvents = null) {
     });
     
     eventsList.innerHTML = html;
+    
+    // Actualizar contador de resultados
+    updateResultsCount();
+    
+    // Configurar scroll infinito si hay más eventos por cargar
+    if (endIndex < eventsToRender.length) {
+        setupInfiniteScroll();
+    } else {
+        // Remover el indicador de carga si existe
+        const loadingIndicator = document.getElementById('loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.remove();
+        }
+    }
+}
+
+// Configurar scroll infinito
+function setupInfiniteScroll() {
+    // Remover listeners anteriores
+    if (window._scrollHandler) {
+        window.removeEventListener('scroll', window._scrollHandler);
+    }
+    
+    // Crear nuevo handler para el scroll de la ventana
+    const handleScroll = () => {
+        if (isLoadingMore) return;
+        
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollHeight = document.documentElement.scrollHeight;
+        const clientHeight = window.innerHeight;
+        
+        // Cuando el usuario está cerca del final (200px antes)
+        if (scrollTop + clientHeight >= scrollHeight - 200) {
+            loadMoreEvents();
+        }
+    };
+    
+    // Guardar referencia al handler
+    window._scrollHandler = handleScroll;
+    window.addEventListener('scroll', handleScroll, { passive: true });
+}
+
+// Cargar más eventos
+function loadMoreEvents() {
+    if (isLoadingMore) return;
+    
+    const eventsToRender = filteredEvents.length > 0 ? filteredEvents : events;
+    
+    if (visibleEventsCount >= eventsToRender.length) {
+        return; // Ya se mostraron todos los eventos
+    }
+    
+    isLoadingMore = true;
+    
+    // Mostrar indicador de carga
+    const eventsList = document.getElementById('events-list');
+    if (eventsList && !document.getElementById('loading-indicator')) {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'loading-indicator';
+        loadingDiv.className = 'loading-indicator';
+        loadingDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cargando más eventos...';
+        eventsList.appendChild(loadingDiv);
+    }
+    
+    // Simular un pequeño delay para mejor UX
+    setTimeout(() => {
+        visibleEventsCount += 20;
+        renderEvents(filteredEvents.length > 0 ? filteredEvents : null, true);
+        isLoadingMore = false;
+    }, 300);
 }
 
 // Escapar HTML para prevenir XSS
@@ -713,7 +849,7 @@ function escapeHtml(text) {
 // Manejar búsqueda
 function handleSearch() {
     searchQuery = document.getElementById('search-input').value.trim().toLowerCase();
-    currentPage = 1; // Resetear a primera página al buscar
+    visibleEventsCount = 20; // Resetear contador al buscar
     applyFiltersAndRender();
 }
 
@@ -757,8 +893,8 @@ function applyFiltersAndRender() {
         clearFiltersBtn.style.display = hasActiveFilters ? 'inline-flex' : 'none';
     }
     
-    // Renderizar con paginación
-    renderPaginatedEvents();
+    // Renderizar eventos (sin append, desde el inicio)
+    renderEvents(filteredEvents, false);
 }
 
 // Limpiar todos los filtros
@@ -767,7 +903,7 @@ function clearAllFilters() {
     document.getElementById('filter-date').value = '';
     document.getElementById('filter-type').value = '';
     searchQuery = '';
-    currentPage = 1;
+    visibleEventsCount = 20; // Resetear contador
     applyFiltersAndRender();
 }
 
@@ -785,130 +921,7 @@ function updateResultsCount() {
     }
 }
 
-// Renderizar eventos con paginación
-function renderPaginatedEvents() {
-    const totalEvents = filteredEvents.length;
-    
-    // Calcular paginación
-    const totalPages = itemsPerPage > 0 ? Math.ceil(totalEvents / itemsPerPage) : 1;
-    const startIndex = itemsPerPage > 0 ? (currentPage - 1) * itemsPerPage : 0;
-    const endIndex = itemsPerPage > 0 ? Math.min(startIndex + itemsPerPage, totalEvents) : totalEvents;
-    
-    // Obtener eventos para la página actual
-    const eventsToRender = filteredEvents.slice(startIndex, endIndex);
-    
-    // Renderizar eventos
-    renderEvents(eventsToRender);
-    
-    // Actualizar controles de paginación
-    updatePaginationControls(totalPages, startIndex, endIndex, totalEvents);
-}
-
-// Actualizar controles de paginación
-function updatePaginationControls(totalPages, startIndex, endIndex, totalEvents) {
-    const paginationTop = document.getElementById('pagination-controls-top');
-    const paginationBottom = document.getElementById('pagination-controls-bottom');
-    
-    // Mostrar/ocultar controles según si hay eventos
-    const shouldShow = totalEvents > 0 && itemsPerPage > 0 && totalPages > 1;
-    if (paginationTop) paginationTop.style.display = shouldShow ? 'flex' : 'none';
-    if (paginationBottom) paginationBottom.style.display = shouldShow ? 'flex' : 'none';
-    
-    if (!shouldShow) return;
-    
-    // Actualizar información de paginación
-    const infoText = `Mostrando ${startIndex + 1}-${endIndex} de ${totalEvents} eventos`;
-    const infoTextTop = document.getElementById('pagination-info-text');
-    const infoTextBottom = document.getElementById('pagination-info-text-bottom');
-    if (infoTextTop) infoTextTop.textContent = infoText;
-    if (infoTextBottom) infoTextBottom.textContent = infoText;
-    
-    // Actualizar botones anterior/siguiente
-    const prevPageBtn = document.getElementById('prev-page');
-    const nextPageBtn = document.getElementById('next-page');
-    const prevPageBtnBottom = document.getElementById('prev-page-bottom');
-    const nextPageBtnBottom = document.getElementById('next-page-bottom');
-    
-    const canGoPrev = currentPage > 1;
-    const canGoNext = currentPage < totalPages;
-    
-    if (prevPageBtn) prevPageBtn.disabled = !canGoPrev;
-    if (nextPageBtn) nextPageBtn.disabled = !canGoNext;
-    if (prevPageBtnBottom) prevPageBtnBottom.disabled = !canGoPrev;
-    if (nextPageBtnBottom) nextPageBtnBottom.disabled = !canGoNext;
-    
-    // Generar números de página
-    renderPageNumbers(totalPages);
-}
-
-// Renderizar números de página
-function renderPageNumbers(totalPages) {
-    const pageNumbersTop = document.getElementById('page-numbers');
-    const pageNumbersBottom = document.getElementById('page-numbers-bottom');
-    
-    if (!pageNumbersTop || !pageNumbersBottom) return;
-    
-    let html = '';
-    const maxVisible = 7; // Máximo de números visibles
-    let startPage = 1;
-    let endPage = totalPages;
-    
-    if (totalPages > maxVisible) {
-        if (currentPage <= 4) {
-            startPage = 1;
-            endPage = maxVisible;
-        } else if (currentPage >= totalPages - 3) {
-            startPage = totalPages - maxVisible + 1;
-            endPage = totalPages;
-        } else {
-            startPage = currentPage - 3;
-            endPage = currentPage + 3;
-        }
-    }
-    
-    // Botón primera página
-    if (startPage > 1) {
-        html += `<button class="page-number" onclick="goToPage(1)">1</button>`;
-        if (startPage > 2) {
-            html += `<span class="page-number ellipsis">...</span>`;
-        }
-    }
-    
-    // Números de página
-    for (let i = startPage; i <= endPage; i++) {
-        const isActive = i === currentPage;
-        html += `<button class="page-number ${isActive ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
-    }
-    
-    // Botón última página
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) {
-            html += `<span class="page-number ellipsis">...</span>`;
-        }
-        html += `<button class="page-number" onclick="goToPage(${totalPages})">${totalPages}</button>`;
-    }
-    
-    pageNumbersTop.innerHTML = html;
-    pageNumbersBottom.innerHTML = html;
-}
-
-// Ir a página específica (disponible globalmente)
-function goToPage(page) {
-    const totalPages = itemsPerPage > 0 ? Math.ceil(filteredEvents.length / itemsPerPage) : 1;
-    if (page < 1 || page > totalPages) return;
-    
-    currentPage = page;
-    applyFiltersAndRender();
-    
-    // Scroll suave hacia arriba de la lista
-    const eventsList = document.getElementById('events-list');
-    if (eventsList) {
-        eventsList.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-}
-
 // Hacer funciones disponibles globalmente para onclick
-window.goToPage = goToPage;
 window.clearAllFilters = clearAllFilters;
 
 // Filtrar eventos (mantener compatibilidad)
@@ -921,7 +934,7 @@ function deleteEvent(id) {
     if (confirm('¿Estás seguro de que quieres eliminar este evento?')) {
         events = events.filter(event => event.id !== id);
         saveEventsToStorage();
-        currentPage = 1; // Resetear a primera página
+        visibleEventsCount = 20; // Resetear contador
         applyFiltersAndRender();
         updateStatistics();
         showNotification('Evento eliminado');
@@ -960,12 +973,40 @@ function formatDate(dateString) {
     return date.toLocaleDateString('es-ES', options);
 }
 
+// Formatear fecha y hora de creación
+function formatDateWithTime(dateString, createdAt) {
+    const date = new Date(dateString + 'T00:00:00');
+    const dateOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+    const dateStr = date.toLocaleDateString('es-ES', dateOptions);
+    
+    // Si hay createdAt, mostrar también la hora
+    if (createdAt) {
+        try {
+            const createdDate = new Date(createdAt);
+            const timeOptions = { hour: '2-digit', minute: '2-digit' };
+            const timeStr = createdDate.toLocaleTimeString('es-ES', timeOptions);
+            return `${dateStr} - ${timeStr}`;
+        } catch (e) {
+            // Si hay error al parsear createdAt, solo mostrar fecha
+            return dateStr;
+        }
+    }
+    
+    return dateStr;
+}
+
 // Cargar eventos desde localStorage
 function loadEvents() {
     const savedEvents = localStorage.getItem(STORAGE_KEYS.EVENTS);
     if (savedEvents) {
         try {
             events = JSON.parse(savedEvents);
+            // Ordenar eventos por fecha y hora de creación (más reciente primero)
+            events.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt) : new Date(a.date + 'T00:00:00');
+                const dateB = b.createdAt ? new Date(b.createdAt) : new Date(b.date + 'T00:00:00');
+                return dateB - dateA; // Más reciente primero
+            });
             filteredEvents = [...events];
             applyFiltersAndRender();
         } catch (e) {
@@ -1028,18 +1069,23 @@ function parseAndImportCSV(csvContent) {
         
         if (char === '"') {
             if (inQuotes && nextChar === '"') {
+                // Comilla escapada ("" dentro de comillas)
                 currentLine += '"';
                 i++; // Saltar siguiente comilla
             } else {
+                // Inicio o fin de comillas
                 inQuotes = !inQuotes;
+                // Mantener las comillas en la línea para que parseCSVLine las maneje
                 currentLine += char;
             }
         } else if (char === '\n' && !inQuotes) {
+            // Solo dividir en nueva línea si NO estamos dentro de comillas
             if (currentLine.trim()) {
                 lines.push(currentLine);
             }
             currentLine = '';
         } else {
+            // Agregar carácter al campo actual (incluyendo saltos de línea si estamos en comillas)
             currentLine += char;
         }
     }
@@ -1105,30 +1151,37 @@ function parseAndImportCSV(csvContent) {
                 console.warn('Headers esperados:', expectedHeaders);
             }
             
-            // Debug: mostrar valores de cada columna
-            if (i === 1) { // Solo para la primera fila de datos
-                console.log('Primera fila de datos parseada:', row);
-                console.log('Mapeo de columnas:', columnMap);
-                expectedHeaders.forEach(header => {
-                    const idx = columnMap[header];
-                    if (idx !== undefined) {
-                        console.log(`  ${header} (índice ${idx}):`, row[idx]);
-                    }
-                });
-            }
+            // Debug: mostrar valores de cada columna (especialmente la descripción)
+            console.log(`\n=== Procesando fila ${i + 1} ===`);
+            console.log('Longitud de la línea:', line.length);
+            console.log('Número de campos parseados:', row.length);
+            expectedHeaders.forEach(header => {
+                const idx = columnMap[header];
+                if (idx !== undefined && idx < row.length) {
+                    const value = row[idx];
+                    const preview = value ? (value.length > 100 ? value.substring(0, 100) + '...' : value) : '(vacío)';
+                    console.log(`  ${header} (índice ${idx}):`, preview, `(longitud: ${value ? value.length : 0})`);
+                } else {
+                    console.warn(`  ${header}: índice no encontrado o fuera de rango`);
+                }
+            });
             
             const validationResult = validateCSVRow(row, columnMap, i + 1);
             
             if (validationResult.valid) {
                 // Verificar que todos los campos estén presentes
-                if (!validationResult.event.description) {
+                if (!validationResult.event.description || validationResult.event.description.trim() === '') {
                     console.error(`Fila ${i + 1}: Descripción vacía después de validación`, validationResult.event);
+                    console.error('Valor original de descripción en la fila:', row[columnMap['Descripción']]);
+                } else {
+                    console.log(`Fila ${i + 1}: Descripción importada correctamente (${validationResult.event.description.length} caracteres)`);
                 }
                 importedEvents.push(validationResult.event);
             } else {
                 errors.push(`Fila ${i + 1}: ${validationResult.error}`);
                 console.error(`Error en fila ${i + 1}:`, validationResult.error);
                 console.error('Fila parseada completa:', row);
+                console.error('Valor de descripción en la fila:', row[columnMap['Descripción']]);
             }
         } catch (error) {
             errors.push(`Fila ${i + 1}: Error al parsear - ${error.message}`);
@@ -1153,25 +1206,24 @@ function parseCSVLine(line) {
     
     for (let i = 0; i < line.length; i++) {
         const char = line[i];
+        const nextChar = line[i + 1];
         
         if (char === '"') {
-            if (inQuotes && line[i + 1] === '"') {
+            if (inQuotes && nextChar === '"') {
                 // Comilla escapada ("" dentro de comillas)
                 current += '"';
                 i++; // Saltar siguiente comilla
-            } else if (inQuotes && (line[i + 1] === ',' || i === line.length - 1)) {
-                // Fin de campo entre comillas
-                inQuotes = false;
             } else {
                 // Inicio o fin de comillas
                 inQuotes = !inQuotes;
+                // No agregar las comillas al contenido
             }
         } else if (char === ',' && !inQuotes) {
             // Fin de campo (solo si no estamos dentro de comillas)
             result.push(current);
             current = '';
         } else {
-            // Agregar carácter al campo actual
+            // Agregar carácter al campo actual (incluyendo saltos de línea si estamos en comillas)
             current += char;
         }
     }
@@ -1179,15 +1231,12 @@ function parseCSVLine(line) {
     // Agregar el último campo
     result.push(current);
     
-    // Limpiar comillas de inicio y fin de cada campo, pero mantener el contenido
+    // Limpiar y procesar cada campo
     return result.map(field => {
-        // Remover comillas de inicio y fin si existen
-        if (field.startsWith('"') && field.endsWith('"')) {
-            field = field.slice(1, -1);
-        }
         // Reemplazar comillas dobles escapadas por comillas simples
         field = field.replace(/""/g, '"');
-        return field.trim();
+        // NO hacer trim aquí para preservar espacios importantes en la descripción
+        return field;
     });
 }
 
@@ -1281,13 +1330,15 @@ function validateCSVRow(row, columnMap, rowNumber) {
         errors.push('Descripción no encontrada en la fila');
     } else {
         const descValue = row[descIndex];
-        if (descValue === undefined || descValue === null || (typeof descValue === 'string' && descValue.trim() === '')) {
+        if (descValue === undefined || descValue === null) {
             errors.push('Descripción es requerida y no puede estar vacía');
         } else {
-            // Asegurar que la descripción se capture completa, incluso con saltos de línea
-            event.description = String(descValue).trim();
-            // Verificar que la descripción no esté vacía después del trim
-            if (event.description === '') {
+            // Convertir a string y limpiar espacios al inicio y final, pero mantener saltos de línea
+            const descStr = String(descValue);
+            // Solo hacer trim de espacios en blanco al inicio y final, no de saltos de línea
+            event.description = descStr.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '');
+            // Verificar que la descripción no esté vacía después del procesamiento
+            if (event.description === '' || event.description.trim() === '') {
                 errors.push('Descripción está vacía después de procesar');
             }
         }
@@ -1488,11 +1539,18 @@ function importEvents(eventsToImport, errors = [], action = 'add') {
         events.push(...eventsToImport);
     }
     
+    // Ordenar eventos por fecha y hora de creación (más reciente primero)
+    events.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(a.date + 'T00:00:00');
+        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(b.date + 'T00:00:00');
+        return dateB - dateA; // Más reciente primero
+    });
+    
     // Guardar en localStorage
     saveEventsToStorage();
     
     // Actualizar interfaz
-    currentPage = 1;
+    visibleEventsCount = 20; // Resetear contador
     applyFiltersAndRender();
     updateStatistics();
     

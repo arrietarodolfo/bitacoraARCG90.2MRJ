@@ -70,24 +70,8 @@
                 
                 <h2><i class="fas fa-list"></i> Eventos Registrados</h2>
                 
-                <!-- Controles de paginación superior -->
-                <div class="pagination-controls-top" id="pagination-controls-top" style="display: none;">
-                    <div class="pagination-info">
-                        <span id="pagination-info-text">Mostrando 0-0 de 0 eventos</span>
-                    </div>
-                    <div class="pagination-buttons">
-                        <button id="prev-page" class="btn" disabled>
-                            <i class="fas fa-chevron-left"></i> Anterior
-                        </button>
-                        <div class="page-numbers" id="page-numbers"></div>
-                        <button id="next-page" class="btn" disabled>
-                            Siguiente <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="events-list" id="events-list">
-                    <!-- Los eventos se cargarán aquí dinámicamente -->
+                <!-- Los eventos se cargarán aquí dinámicamente -->
+                <div id="events-list">
                     <div class="empty-state">
                         <i class="fas fa-clipboard-list"></i>
                         <h3>No hay eventos registrados</h3>
@@ -95,52 +79,30 @@
                     </div>
                 </div>
                 
-                <!-- Controles de paginación inferior -->
-                <div class="pagination-controls-bottom" id="pagination-controls-bottom" style="display: none;">
-                    <div class="pagination-info">
-                        <span id="pagination-info-text-bottom">Mostrando 0-0 de 0 eventos</span>
-                    </div>
-                    <div class="pagination-buttons">
-                        <button id="prev-page-bottom" class="btn" disabled>
-                            <i class="fas fa-chevron-left"></i> Anterior
-                        </button>
-                        <div class="page-numbers" id="page-numbers-bottom"></div>
-                        <button id="next-page-bottom" class="btn" disabled>
-                            Siguiente <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
-                    <div class="items-per-page">
-                        <label for="items-per-page-select">Eventos por página:</label>
-                        <select id="items-per-page-select">
-                            <option value="10">10</option>
-                            <option value="20" selected>20</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                            <option value="0">Todos</option>
-                        </select>
-                    </div>
-                </div>
-                
             </div>
             
-            <div class="card">
-                <h2><i class="fas fa-plus-circle"></i> Registrar Nuevo Evento</h2>
+            <div class="card card-form-collapsed" id="form-card" style="height: 0; padding: 0; margin-bottom: 0; box-shadow: none; border: none;">
+                <button class="toggle-form-btn" id="toggle-form-btn" title="Registrar Nuevo Evento">
+                    <i class="fas fa-plus"></i>
+                </button>
                 
-                <!-- Sección de borrador recuperado -->
-                <div id="draftSection" class="draft-section" style="display: none;">
-                    <h4><i class="fas fa-history"></i> Borrador Recuperado</h4>
-                    <p>Tenemos un borrador no guardado de tu última sesión. ¿Quieres recuperarlo?</p>
-                    <div class="draft-actions">
-                        <button id="restoreDraft" class="btn btn-warning">
-                            <i class="fas fa-redo"></i> Recuperar Borrador
-                        </button>
-                        <button id="discardDraft" class="btn btn-delete">
-                            <i class="fas fa-trash"></i> Descartar
-                        </button>
+                <div class="form-content" id="form-content" style="display: none;">
+                    <h2><i class="fas fa-plus-circle"></i> Registrar Nuevo Evento</h2>
+                    <!-- Sección de borrador recuperado -->
+                    <div id="draftSection" class="draft-section" style="display: none;">
+                        <h4><i class="fas fa-history"></i> Borrador Recuperado</h4>
+                        <p>Tenemos un borrador no guardado de tu última sesión. ¿Quieres recuperarlo?</p>
+                        <div class="draft-actions">
+                            <button id="restoreDraft" class="btn btn-warning">
+                                <i class="fas fa-redo"></i> Recuperar Borrador
+                            </button>
+                            <button id="discardDraft" class="btn btn-delete">
+                                <i class="fas fa-trash"></i> Descartar
+                            </button>
+                        </div>
                     </div>
-                </div>
-                
-                <form id="event-form">
+                    
+                    <form id="event-form">
                     <div class="form-group">
                         <label for="event-title"><i class="fas fa-heading"></i> Título del Evento</label>
                         <input type="text" id="event-title" placeholder="Ej: Entrega compleja en edificio corporativo" required data-autosave>
@@ -208,6 +170,7 @@
                     </div>
                 </div>
                 <div class="import-summary" id="import-summary"></div>
+                </div>
             </div>
         </div>
         
