@@ -155,7 +155,9 @@
                         <label for="event-type"><i class="fas fa-tag"></i> Tipo de Evento</label>
                         <select id="event-type" required data-autosave>
                             <option value="">Seleccionar tipo</option>
-                            <option value="delivery">Entrega exitosa</option>
+                            <option value="driver-registration">Registro de driver en app</option>
+                            <option value="first-day-driver">Primer día Driver</option>
+                            <option value="driver-resignation">Renuncia Driver</option>
                             <option value="incident">Incidente/Problema</option>
                             <option value="observation">Observación</option>
                             <option value="other">Otro</option>
@@ -180,10 +182,6 @@
                         <button type="button" id="clear-form" class="btn">
                             <i class="fas fa-eraser"></i> Limpiar Todo
                         </button>
-                        
-                        <button type="button" id="export-bitacora" class="btn btn-warning">
-                            <i class="fas fa-download"></i> Exportar Bitácora
-                        </button>
                     </div>
                     
                     <div class="auto-save-notice">
@@ -192,39 +190,24 @@
                     </div>
                 </form>
                 
-                <div class="csv-info">
-                    <h4><i class="fas fa-file-csv"></i> Exportación Manual</h4>
-                    <p>Usa el botón "Exportar Bitácora" para descargar todos los eventos en formato CSV. Te recomendamos guardarlo en una carpeta llamada <strong>storage</strong>.</p>
-                </div>
-                
-                <!-- Sección de importación CSV -->
-                <div class="import-section">
-                    <h4><i class="fas fa-file-upload"></i> Importar Eventos desde CSV</h4>
-                    <p>Selecciona un archivo CSV con el formato correcto para importar eventos.</p>
-                    <div class="file-input-wrapper">
-                        <input type="file" id="import-csv-file" accept=".csv" style="display: none;">
-                        <label for="import-csv-file" class="file-input-label">
-                            <i class="fas fa-file-csv"></i> Seleccionar archivo CSV
-                        </label>
-                    </div>
-                    <div class="import-progress" id="import-progress">
-                        <p>Procesando archivo...</p>
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progress-fill" style="width: 0%">0%</div>
-                        </div>
-                    </div>
-                    <div class="import-summary" id="import-summary"></div>
-                </div>
-                
-                <div class="btn-group">
-                    <button id="export-now" class="btn btn-warning">
-                        <i class="fas fa-download"></i> Exportar CSV Ahora
+                <div class="csv-actions">
+                    <button id="export-now" class="btn btn-export">
+                        <i class="fas fa-download"></i> Exportar CSV
                     </button>
                     
-                    <button id="clear-all" class="btn btn-delete">
-                        <i class="fas fa-trash-alt"></i> Eliminar Todos
-                    </button>
+                    <label for="import-csv-file" class="btn btn-import">
+                        <i class="fas fa-upload"></i> Importar CSV
+                        <input type="file" id="import-csv-file" accept=".csv" style="display: none;">
+                    </label>
                 </div>
+                
+                <div class="import-progress" id="import-progress" style="display: none;">
+                    <p>Procesando archivo...</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill" style="width: 0%">0%</div>
+                    </div>
+                </div>
+                <div class="import-summary" id="import-summary"></div>
             </div>
         </div>
         

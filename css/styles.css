@@ -202,6 +202,14 @@ textarea {
     transform: translateY(0);
 }
 
+.btn-edit {
+    background-color: var(--secondary-color);
+}
+
+.btn-edit:hover {
+    background-color: #2980b9;
+}
+
 .btn-delete {
     background-color: var(--accent-color);
 }
@@ -603,20 +611,47 @@ footer {
     background-color: var(--secondary-color);
 }
 
-.csv-info {
-    background-color: #e8f4fc;
-    border-radius: var(--border-radius);
-    padding: 15px;
+.csv-actions {
+    display: flex;
+    gap: 10px;
     margin-top: 20px;
-    border-left: 4px solid var(--secondary-color);
+    flex-wrap: wrap;
 }
 
-.csv-info h4 {
-    color: var(--primary-color);
-    margin-bottom: 8px;
+.btn-export {
+    background-color: var(--secondary-color);
+    color: white;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
+    box-sizing: border-box;
+}
+
+.btn-export:hover {
+    background-color: #2980b9;
+}
+
+.btn-import {
+    background-color: var(--success-color);
+    color: white;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-sizing: border-box;
+    margin: 0;
+}
+
+.btn-import:hover {
+    background-color: #229954;
 }
 
 .auto-save-notice {
@@ -669,21 +704,16 @@ footer {
 }
 
 /* Estilos para importación CSV */
-.import-section {
-    background-color: #e8f5e9;
+.import-progress {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
     border-radius: var(--border-radius);
-    padding: 20px;
-    margin-top: 25px;
-    margin-bottom: 20px;
-    border-left: 4px solid var(--success-color);
+    display: none;
 }
 
-.import-section h4 {
-    color: var(--primary-color);
-    margin-bottom: 15px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.import-progress.show {
+    display: block;
 }
 
 .file-input-wrapper {

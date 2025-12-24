@@ -8,6 +8,7 @@ let currentPage = 1;
 let itemsPerPage = 20;
 let filteredEvents = [];
 let searchQuery = '';
+let editingEventId = null; // ID del evento que se está editando
 
 // Claves de almacenamiento
 const STORAGE_KEYS = {
@@ -31,12 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar eventos del formulario
     document.getElementById('event-form').addEventListener('submit', saveFinalEvent);
     document.getElementById('clear-form').addEventListener('click', clearForm);
-    document.getElementById('clear-all').addEventListener('click', clearAllEvents);
     document.getElementById('export-now').addEventListener('click', exportToCSV);
-    const exportBitacoraBtn = document.getElementById('export-bitacora');
-    if (exportBitacoraBtn) {
-        exportBitacoraBtn.addEventListener('click', exportBitacora);
-    }
     document.getElementById('restoreDraft').addEventListener('click', restoreDraft);
     document.getElementById('discardDraft').addEventListener('click', discardDraft);
     
@@ -204,9 +200,6 @@ function autoSaveDraft() {
 }
 
 // Exportar bitácora (descargar CSV)
-function exportBitacora() {
-    exportToCSV();
-}
 
 // Guardar evento (sin exportar CSV)
 function saveFinalEvent(e) {
@@ -233,19 +226,42 @@ function saveFinalEvent(e) {
         return;
     }
     
-    // Crear objeto de evento
-    const event = {
-        id: Date.now(), // ID único basado en timestamp
-        date: formData.date,
-        type: formData.type,
-        route: formData.route,
-        title: formData.title,
-        description: formData.description,
-        createdAt: new Date().toISOString()
-    };
-    
-    // Agregar a la lista de eventos
-    events.push(event);
+    if (editingEventId !== null) {
+        // Modo edición: actualizar evento existente
+        const eventIndex = events.findIndex(e => e.id === editingEventId);
+        if (eventIndex !== -1) {
+            // Mantener el ID y createdAt originales
+            events[eventIndex] = {
+                ...events[eventIndex],
+                date: formData.date,
+                type: formData.type,
+                route: formData.route,
+                title: formData.title,
+                description: formData.description
+            };
+            
+            showNotification('Evento actualizado exitosamente');
+        } else {
+            showNotification('Error: No se encontró el evento a editar', 'warning');
+            showSaveIndicator('error');
+            return;
+        }
+    } else {
+        // Modo creación: crear nuevo evento
+        const event = {
+            id: Date.now(), // ID único basado en timestamp
+            date: formData.date,
+            type: formData.type,
+            route: formData.route,
+            title: formData.title,
+            description: formData.description,
+            createdAt: new Date().toISOString()
+        };
+        
+        // Agregar a la lista de eventos
+        events.push(event);
+        showNotification('Evento guardado exitosamente');
+    }
     
     // Guardar en localStorage
     saveEventsToStorage();
@@ -253,17 +269,100 @@ function saveFinalEvent(e) {
     // Limpiar borrador
     clearDraft();
     
+    // Salir del modo edición
+    cancelEdit();
+    
     // Actualizar la interfaz
     currentPage = 1; // Resetear a primera página
     applyFiltersAndRender();
     updateStatistics();
     clearForm();
     
-    // Mostrar notificación
-    showNotification('Evento guardado exitosamente');
-    
     // Mostrar indicador de guardado exitoso
     showSaveIndicator('saved');
+}
+
+// Editar evento (disponible globalmente)
+window.editEvent = function(id) {
+    const event = events.find(e => e.id === id);
+    if (!event) {
+        showNotification('Error: No se encontró el evento', 'warning');
+        return;
+    }
+    
+    // Guardar el ID del evento que se está editando
+    editingEventId = id;
+    
+    // Cargar datos en el formulario
+    document.getElementById('event-title').value = event.title || '';
+    document.getElementById('event-date').value = event.date || '';
+    document.getElementById('event-type').value = event.type || '';
+    document.getElementById('event-route').value = event.route || '';
+    document.getElementById('event-desc').value = event.description || '';
+    
+    // Actualizar el título del formulario
+    const formTitle = document.querySelector('.card h2');
+    if (formTitle) {
+        const originalTitle = formTitle.innerHTML;
+        formTitle.setAttribute('data-original-title', originalTitle);
+        formTitle.innerHTML = '<i class="fas fa-edit"></i> Editar Evento';
+    }
+    
+    // Mostrar botón de cancelar edición si no existe
+    let cancelEditBtn = document.getElementById('cancel-edit-btn');
+    if (!cancelEditBtn) {
+        const btnGroup = document.querySelector('.btn-group');
+        if (btnGroup) {
+            cancelEditBtn = document.createElement('button');
+            cancelEditBtn.type = 'button';
+            cancelEditBtn.id = 'cancel-edit-btn';
+            cancelEditBtn.className = 'btn btn-secondary';
+            cancelEditBtn.innerHTML = '<i class="fas fa-times"></i> Cancelar Edición';
+            cancelEditBtn.onclick = cancelEdit;
+            btnGroup.insertBefore(cancelEditBtn, btnGroup.firstChild);
+        }
+    }
+    if (cancelEditBtn) {
+        cancelEditBtn.style.display = 'inline-block';
+    }
+    
+    // Cambiar texto del botón de guardar
+    const saveButton = document.getElementById('save-button');
+    if (saveButton) {
+        saveButton.innerHTML = '<i class="fas fa-save"></i> Actualizar Evento';
+    }
+    
+    // Scroll al formulario
+    document.querySelector('.card h2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    
+    showNotification('Modo edición activado. Modifica los campos y haz clic en "Actualizar Evento"', 'info');
+}
+
+// Cancelar edición
+window.cancelEdit = function() {
+    editingEventId = null;
+    
+    // Restaurar título del formulario
+    const formTitle = document.querySelector('.card h2');
+    if (formTitle && formTitle.getAttribute('data-original-title')) {
+        formTitle.innerHTML = formTitle.getAttribute('data-original-title');
+        formTitle.removeAttribute('data-original-title');
+    }
+    
+    // Ocultar botón de cancelar
+    const cancelEditBtn = document.getElementById('cancel-edit-btn');
+    if (cancelEditBtn) {
+        cancelEditBtn.style.display = 'none';
+    }
+    
+    // Restaurar texto del botón de guardar
+    const saveButton = document.getElementById('save-button');
+    if (saveButton) {
+        saveButton.innerHTML = '<i class="fas fa-save"></i> Guardar Evento';
+    }
+    
+    // Limpiar borrador
+    clearDraft();
 }
 
 // Obtener datos del formulario
@@ -462,14 +561,22 @@ function exportToCSV() {
     let csv = '\uFEFFID,Fecha,Tipo,Ruta,Título,Descripción,Creado\n';
     
     events.forEach(event => {
+        // Escapar comillas y asegurar que los campos de texto estén entre comillas
+        const escapeCSV = (field) => {
+            if (field === null || field === undefined) return '""';
+            const str = String(field);
+            // Escapar comillas dobles y envolver en comillas
+            return `"${str.replace(/"/g, '""')}"`;
+        };
+        
         const row = [
-            event.id,
-            event.date,
-            event.type,
-            event.route || '',
-            `"${(event.title || '').replace(/"/g, '""')}"`,
-            `"${(event.description || '').replace(/"/g, '""')}"`,
-            event.createdAt
+            event.id || '',
+            event.date || '',
+            event.type || '',
+            event.route ? escapeCSV(event.route) : '""',
+            escapeCSV(event.title || ''),
+            escapeCSV(event.description || ''),
+            event.createdAt || new Date().toISOString()
         ];
         
         csv += row.join(',') + '\n';
@@ -541,9 +648,17 @@ function renderEvents(filteredEvents = null) {
         let typeText = '';
         
         switch(event.type) {
-            case 'delivery':
+            case 'driver-registration':
                 typeClass = 'type-delivery';
-                typeText = 'Entrega exitosa';
+                typeText = 'Registro de driver en app';
+                break;
+            case 'first-day-driver':
+                typeClass = 'type-incident';
+                typeText = 'Primer día Driver';
+                break;
+            case 'driver-resignation':
+                typeClass = 'type-observation';
+                typeText = 'Renuncia Driver';
                 break;
             case 'incident':
                 typeClass = 'type-incident';
@@ -557,6 +672,9 @@ function renderEvents(filteredEvents = null) {
                 typeClass = 'type-other';
                 typeText = 'Otro';
                 break;
+            default:
+                typeClass = 'type-other';
+                typeText = event.type;
         }
         
         html += `
@@ -571,6 +689,9 @@ function renderEvents(filteredEvents = null) {
                 <div class="event-title">${escapeHtml(event.title)}</div>
                 <div class="event-desc">${escapeHtml(event.description)}</div>
                 <div class="event-actions">
+                    <button class="btn btn-edit" onclick="editEvent(${event.id})" title="Editar evento">
+                        <i class="fas fa-edit"></i>
+                    </button>
                     <button class="btn btn-delete" onclick="deleteEvent(${event.id})" title="Eliminar evento">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -807,24 +928,16 @@ function deleteEvent(id) {
     }
 }
 
-// Eliminar todos los eventos
-function clearAllEvents() {
-    if (confirm('¿Estás seguro de que quieres eliminar TODOS los eventos? Esta acción no se puede deshacer.')) {
-        events = [];
-        saveEventsToStorage();
-        currentPage = 1;
-        filteredEvents = [];
-        applyFiltersAndRender();
-        updateStatistics();
-        showNotification('Todos los eventos han sido eliminados', 'warning');
-    }
-}
 
 // Limpiar formulario
 function clearForm() {
     document.getElementById('event-form').reset();
     document.getElementById('event-date').valueAsDate = new Date();
     clearDraft();
+    // Cancelar edición si está activa
+    if (editingEventId !== null) {
+        cancelEdit();
+    }
 }
 
 // Actualizar estadísticas
@@ -832,7 +945,8 @@ function updateStatistics() {
     const total = events.length;
     const today = new Date().toISOString().split('T')[0];
     const todayEvents = events.filter(event => event.date === today).length;
-    const incidents = events.filter(event => event.type === 'incident').length;
+    // Contar renuncias e incidentes como "incidencias reportadas"
+    const incidents = events.filter(event => event.type === 'driver-resignation' || event.type === 'incident').length;
     
     document.getElementById('total-events').textContent = total;
     document.getElementById('today-events').textContent = todayEvents;
@@ -879,10 +993,14 @@ function handleCSVImport(event) {
     reader.onload = function(e) {
         try {
             const csvContent = e.target.result;
+            if (!csvContent || csvContent.trim() === '') {
+                showNotification('El archivo CSV está vacío', 'warning');
+                return;
+            }
             parseAndImportCSV(csvContent);
         } catch (error) {
             console.error('Error al leer archivo:', error);
-            showNotification('Error al leer el archivo CSV', 'warning');
+            showNotification('Error al leer el archivo CSV: ' + error.message, 'warning');
         }
     };
     
@@ -890,13 +1008,47 @@ function handleCSVImport(event) {
         showNotification('Error al leer el archivo', 'warning');
     };
     
-    // Intentar leer como UTF-8 primero, si falla intentar Latin1
+    // Intentar leer como UTF-8 primero (con BOM si existe), si falla intentar Latin1
     reader.readAsText(file, 'UTF-8');
 }
 
 // Parsear e importar CSV
 function parseAndImportCSV(csvContent) {
-    const lines = csvContent.split('\n').filter(line => line.trim());
+    // Normalizar saltos de línea y dividir
+    csvContent = csvContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Dividir en líneas, pero manejar campos multilínea entre comillas
+    const lines = [];
+    let currentLine = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < csvContent.length; i++) {
+        const char = csvContent[i];
+        const nextChar = csvContent[i + 1];
+        
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                currentLine += '"';
+                i++; // Saltar siguiente comilla
+            } else {
+                inQuotes = !inQuotes;
+                currentLine += char;
+            }
+        } else if (char === '\n' && !inQuotes) {
+            if (currentLine.trim()) {
+                lines.push(currentLine);
+            }
+            currentLine = '';
+        } else {
+            currentLine += char;
+        }
+    }
+    
+    // Agregar última línea si existe
+    if (currentLine.trim()) {
+        lines.push(currentLine);
+    }
+    
     if (lines.length < 2) {
         showNotification('El archivo CSV está vacío o no tiene el formato correcto', 'warning');
         return;
@@ -913,30 +1065,75 @@ function parseAndImportCSV(csvContent) {
         return;
     }
     
-    // Mapear índices de columnas
+    // Mapear índices de columnas (normalizar para comparar sin espacios ni acentos)
     const columnMap = {};
-    expectedHeaders.forEach((header, index) => {
-        const headerIndex = headers.findIndex(h => h.toLowerCase() === header.toLowerCase());
+    const normalize = (str) => str.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '');
+    
+    expectedHeaders.forEach((header) => {
+        const headerIndex = headers.findIndex(h => normalize(h) === normalize(header));
         if (headerIndex !== -1) {
             columnMap[header] = headerIndex;
+        } else {
+            console.warn(`⚠️ Columna no encontrada: "${header}". Columnas disponibles:`, headers);
         }
     });
+    
+    // Verificar que todas las columnas requeridas estén mapeadas
+    const requiredColumns = ['ID', 'Fecha', 'Tipo', 'Título', 'Descripción'];
+    const missingRequired = requiredColumns.filter(col => columnMap[col] === undefined);
+    if (missingRequired.length > 0) {
+        showNotification(`Error: Faltan columnas requeridas: ${missingRequired.join(', ')}`, 'warning');
+        console.error('Columnas faltantes:', missingRequired, 'Columnas encontradas:', headers);
+        return;
+    }
     
     // Parsear y validar datos
     const importedEvents = [];
     const errors = [];
     
     for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
+        const line = lines[i];
+        if (!line || line.trim() === '') continue;
         
-        const row = parseCSVLine(line);
-        const validationResult = validateCSVRow(row, columnMap, i + 1);
-        
-        if (validationResult.valid) {
-            importedEvents.push(validationResult.event);
-        } else {
-            errors.push(`Fila ${i + 1}: ${validationResult.error}`);
+            try {
+            const row = parseCSVLine(line);
+            
+            // Debug: mostrar información de la fila parseada
+            if (row.length !== expectedHeaders.length) {
+                console.warn(`Fila ${i + 1}: Número de columnas incorrecto. Esperado: ${expectedHeaders.length}, Obtenido: ${row.length}`);
+                console.warn('Fila parseada:', row);
+                console.warn('Headers esperados:', expectedHeaders);
+            }
+            
+            // Debug: mostrar valores de cada columna
+            if (i === 1) { // Solo para la primera fila de datos
+                console.log('Primera fila de datos parseada:', row);
+                console.log('Mapeo de columnas:', columnMap);
+                expectedHeaders.forEach(header => {
+                    const idx = columnMap[header];
+                    if (idx !== undefined) {
+                        console.log(`  ${header} (índice ${idx}):`, row[idx]);
+                    }
+                });
+            }
+            
+            const validationResult = validateCSVRow(row, columnMap, i + 1);
+            
+            if (validationResult.valid) {
+                // Verificar que todos los campos estén presentes
+                if (!validationResult.event.description) {
+                    console.error(`Fila ${i + 1}: Descripción vacía después de validación`, validationResult.event);
+                }
+                importedEvents.push(validationResult.event);
+            } else {
+                errors.push(`Fila ${i + 1}: ${validationResult.error}`);
+                console.error(`Error en fila ${i + 1}:`, validationResult.error);
+                console.error('Fila parseada completa:', row);
+            }
+        } catch (error) {
+            errors.push(`Fila ${i + 1}: Error al parsear - ${error.message}`);
+            console.error(`Error al parsear fila ${i + 1}:`, error);
+            console.error('Línea original:', line.substring(0, 200)); // Primeros 200 caracteres
         }
     }
     
@@ -948,7 +1145,7 @@ function parseAndImportCSV(csvContent) {
     }
 }
 
-// Parsear línea CSV (maneja comillas y comas)
+// Parsear línea CSV (maneja comillas, comas y saltos de línea)
 function parseCSVLine(line) {
     const result = [];
     let current = '';
@@ -959,21 +1156,39 @@ function parseCSVLine(line) {
         
         if (char === '"') {
             if (inQuotes && line[i + 1] === '"') {
+                // Comilla escapada ("" dentro de comillas)
                 current += '"';
                 i++; // Saltar siguiente comilla
+            } else if (inQuotes && (line[i + 1] === ',' || i === line.length - 1)) {
+                // Fin de campo entre comillas
+                inQuotes = false;
             } else {
+                // Inicio o fin de comillas
                 inQuotes = !inQuotes;
             }
         } else if (char === ',' && !inQuotes) {
-            result.push(current.trim());
+            // Fin de campo (solo si no estamos dentro de comillas)
+            result.push(current);
             current = '';
         } else {
+            // Agregar carácter al campo actual
             current += char;
         }
     }
     
-    result.push(current.trim());
-    return result;
+    // Agregar el último campo
+    result.push(current);
+    
+    // Limpiar comillas de inicio y fin de cada campo, pero mantener el contenido
+    return result.map(field => {
+        // Remover comillas de inicio y fin si existen
+        if (field.startsWith('"') && field.endsWith('"')) {
+            field = field.slice(1, -1);
+        }
+        // Reemplazar comillas dobles escapadas por comillas simples
+        field = field.replace(/""/g, '"');
+        return field.trim();
+    });
 }
 
 // Validar estructura del CSV
@@ -1022,32 +1237,60 @@ function validateCSVRow(row, columnMap, rowNumber) {
     
     // Validar Tipo
     const typeValue = row[columnMap['Tipo']];
-    const validTypes = ['delivery', 'incident', 'observation', 'other'];
+    const validTypes = ['driver-registration', 'first-day-driver', 'driver-resignation', 'incident', 'observation', 'other'];
+    // También aceptar el tipo antiguo 'delivery' para compatibilidad
+    const legacyTypes = ['delivery'];
+    const allValidTypes = [...validTypes, ...legacyTypes];
+    
     if (!typeValue) {
         errors.push('Tipo es requerido');
-    } else if (!validTypes.includes(typeValue.toLowerCase())) {
-        errors.push(`Tipo inválido: ${typeValue}. Debe ser uno de: ${validTypes.join(', ')}`);
     } else {
-        event.type = typeValue.toLowerCase();
+        const normalizedType = typeValue.toLowerCase().trim();
+        if (allValidTypes.includes(normalizedType)) {
+            // Si es el tipo legado 'delivery', mapearlo a 'driver-registration'
+            if (normalizedType === 'delivery') {
+                event.type = 'driver-registration';
+            } else {
+                event.type = normalizedType;
+            }
+        } else {
+            errors.push(`Tipo inválido: ${typeValue}. Debe ser uno de: ${validTypes.join(', ')}`);
+        }
     }
     
     // Ruta (opcional)
-    event.route = row[columnMap['Ruta']] || '';
+    const routeValue = row[columnMap['Ruta']];
+    event.route = routeValue ? routeValue.trim() : '';
     
     // Validar Título
-    const titleValue = row[columnMap['Título']];
-    if (!titleValue || titleValue.trim() === '') {
-        errors.push('Título es requerido');
+    const titleIndex = columnMap['Título'];
+    if (titleIndex === undefined || titleIndex >= row.length) {
+        errors.push('Título no encontrado en la fila');
     } else {
-        event.title = titleValue.trim();
+        const titleValue = row[titleIndex];
+        if (!titleValue || (typeof titleValue === 'string' && titleValue.trim() === '')) {
+            errors.push('Título es requerido');
+        } else {
+            event.title = String(titleValue).trim();
+        }
     }
     
     // Validar Descripción
-    const descValue = row[columnMap['Descripción']];
-    if (!descValue || descValue.trim() === '') {
-        errors.push('Descripción es requerida');
+    const descIndex = columnMap['Descripción'];
+    if (descIndex === undefined || descIndex >= row.length) {
+        errors.push('Descripción no encontrada en la fila');
     } else {
-        event.description = descValue.trim();
+        const descValue = row[descIndex];
+        if (descValue === undefined || descValue === null || (typeof descValue === 'string' && descValue.trim() === '')) {
+            errors.push('Descripción es requerida y no puede estar vacía');
+        } else {
+            // Asegurar que la descripción se capture completa, incluso con saltos de línea
+            event.description = String(descValue).trim();
+            // Verificar que la descripción no esté vacía después del trim
+            if (event.description === '') {
+                errors.push('Descripción está vacía después de procesar');
+            }
+        }
     }
     
     // Creado (opcional, generar si no existe)
