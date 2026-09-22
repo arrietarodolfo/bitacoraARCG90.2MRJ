@@ -17,11 +17,62 @@ const STORAGE_KEYS = {
     LAST_SAVE: 'delivery_log_last_save'
 };
 
+// Función auxiliar para obtener fecha local en formato YYYY-MM-DD (evita desfases UTC)
+function getLocalDateString(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 // Obtener el año actual para el footer
 document.getElementById('current-year').textContent = new Date().getFullYear();
 
-// Establecer la fecha actual como predeterminada en el formulario
-document.getElementById('event-date').valueAsDate = new Date();
+// Establecer la fecha local actual como predeterminada en el formulario
+document.getElementById('event-date').value = getLocalDateString();
+
+// Funciones para abrir y cerrar el formulario
+function openForm(shouldScroll = false) {
+    const toggleFormBtn = document.getElementById('toggle-form-btn');
+    const formContent = document.getElementById('form-content');
+    const formCard = document.getElementById('form-card');
+    if (!formCard || !formContent) return;
+
+    formCard.classList.remove('card-form-collapsed');
+    formCard.style.padding = '25px';
+    formCard.style.height = 'auto';
+    formCard.style.marginBottom = '20px';
+    formCard.style.boxShadow = '';
+    formCard.style.border = '';
+    formContent.style.display = 'block';
+    if (toggleFormBtn) {
+        toggleFormBtn.classList.add('active');
+    }
+
+    if (shouldScroll) {
+        setTimeout(() => {
+            formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+    }
+}
+
+function closeForm() {
+    const toggleFormBtn = document.getElementById('toggle-form-btn');
+    const formContent = document.getElementById('form-content');
+    const formCard = document.getElementById('form-card');
+    if (!formCard || !formContent) return;
+
+    formContent.style.display = 'none';
+    formCard.classList.add('card-form-collapsed');
+    formCard.style.padding = '0';
+    formCard.style.height = '0';
+    formCard.style.marginBottom = '0';
+    formCard.style.boxShadow = 'none';
+    formCard.style.border = 'none';
+    if (toggleFormBtn) {
+        toggleFormBtn.classList.remove('active');
+    }
+}
 
 // Cargar eventos y borradores al iniciar
 document.addEventListener('DOMContentLoaded', function() {
@@ -32,32 +83,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar toggle del formulario
     const toggleFormBtn = document.getElementById('toggle-form-btn');
     const formContent = document.getElementById('form-content');
-    const formCard = document.getElementById('form-card');
-    if (toggleFormBtn && formContent && formCard) {
+    if (toggleFormBtn && formContent) {
         toggleFormBtn.addEventListener('click', function() {
             const isVisible = formContent.style.display !== 'none';
-            
             if (isVisible) {
-                // Colapsar: ocultar contenido y minimizar card
-                formContent.style.display = 'none';
-                formCard.classList.add('card-form-collapsed');
-                formCard.style.padding = '0';
-                formCard.style.height = '0';
-                formCard.style.marginBottom = '0';
-                toggleFormBtn.classList.remove('active');
+                closeForm();
             } else {
-                // Expandir: mostrar contenido y restaurar card
-                formCard.classList.remove('card-form-collapsed');
-                formCard.style.padding = '25px';
-                formCard.style.height = 'auto';
-                formCard.style.marginBottom = '20px';
-                formContent.style.display = 'block';
-                toggleFormBtn.classList.add('active');
-                
-                // Scroll suave hacia el formulario
-                setTimeout(() => {
-                    formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 100);
+                openForm(true);
             }
         });
     }
@@ -232,7 +264,7 @@ function saveFinalEvent(e) {
     const formData = getFormData();
     
     // Validar que la fecha no sea futura
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     if (formData.date > today) {
         showNotification('La fecha no puede ser futura', 'warning');
         showSaveIndicator('error');
@@ -320,6 +352,9 @@ window.editEvent = function(id) {
     // Guardar el ID del evento que se está editando
     editingEventId = id;
     
+    // Abrir y expandir el formulario si está colapsado
+    openForm(false);
+    
     // Cargar datos en el formulario
     document.getElementById('event-title').value = event.title || '';
     document.getElementById('event-date').value = event.date || '';
@@ -327,18 +362,19 @@ window.editEvent = function(id) {
     document.getElementById('event-route').value = event.route || '';
     document.getElementById('event-desc').value = event.description || '';
     
-    // Actualizar el título del formulario
-    const formTitle = document.querySelector('.card h2');
+    // Actualizar el título del formulario (específicamente dentro de .form-content)
+    const formTitle = document.querySelector('.form-content h2');
     if (formTitle) {
-        const originalTitle = formTitle.innerHTML;
-        formTitle.setAttribute('data-original-title', originalTitle);
+        if (!formTitle.getAttribute('data-original-title')) {
+            formTitle.setAttribute('data-original-title', formTitle.innerHTML);
+        }
         formTitle.innerHTML = '<i class="fas fa-edit"></i> Editar Evento';
     }
     
     // Mostrar botón de cancelar edición si no existe
     let cancelEditBtn = document.getElementById('cancel-edit-btn');
     if (!cancelEditBtn) {
-        const btnGroup = document.querySelector('.btn-group');
+        const btnGroup = document.querySelector('#event-form .btn-group');
         if (btnGroup) {
             cancelEditBtn = document.createElement('button');
             cancelEditBtn.type = 'button';
@@ -359,8 +395,15 @@ window.editEvent = function(id) {
         saveButton.innerHTML = '<i class="fas fa-save"></i> Actualizar Evento';
     }
     
-    // Scroll al formulario
-    document.querySelector('.card h2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Scroll suave hacia el formulario y enfocar campo de título
+    const formCard = document.getElementById('form-card');
+    if (formCard) {
+        formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    setTimeout(() => {
+        const titleInput = document.getElementById('event-title');
+        if (titleInput) titleInput.focus();
+    }, 200);
     
     showNotification('Modo edición activado. Modifica los campos y haz clic en "Actualizar Evento"', 'info');
 }
@@ -370,7 +413,7 @@ window.cancelEdit = function() {
     editingEventId = null;
     
     // Restaurar título del formulario
-    const formTitle = document.querySelector('.card h2');
+    const formTitle = document.querySelector('.form-content h2');
     if (formTitle && formTitle.getAttribute('data-original-title')) {
         formTitle.innerHTML = formTitle.getAttribute('data-original-title');
         formTitle.removeAttribute('data-original-title');
@@ -747,8 +790,8 @@ function renderEvents(filteredEvents = null, append = false) {
             <div class="event-item">
                 <div class="event-header">
                     <div>
-                        <span class="event-type ${typeClass}">${typeText}</span>
-                        ${event.route ? `<span class="event-route">${event.route}</span>` : ''}
+                        <span class="event-type ${typeClass}">${escapeHtml(typeText)}</span>
+                        ${event.route ? `<span class="event-route">${escapeHtml(event.route)}</span>` : ''}
                     </div>
                     <span class="event-date">${formattedDate}</span>
                 </div>
@@ -880,7 +923,13 @@ function applyFiltersAndRender() {
     
     // Aplicar filtro de tipo
     if (filterType) {
-        filteredEvents = filteredEvents.filter(event => event.type === filterType);
+        filteredEvents = filteredEvents.filter(event => {
+            // Compatibilidad hacia atrás con eventos antiguos de tipo 'delivery'
+            if (filterType === 'driver-registration' && event.type === 'delivery') {
+                return true;
+            }
+            return event.type === filterType;
+        });
     }
     
     // Actualizar contador de resultados
@@ -945,7 +994,7 @@ function deleteEvent(id) {
 // Limpiar formulario
 function clearForm() {
     document.getElementById('event-form').reset();
-    document.getElementById('event-date').valueAsDate = new Date();
+    document.getElementById('event-date').value = getLocalDateString();
     clearDraft();
     // Cancelar edición si está activa
     if (editingEventId !== null) {
@@ -956,7 +1005,7 @@ function clearForm() {
 // Actualizar estadísticas
 function updateStatistics() {
     const total = events.length;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     const todayEvents = events.filter(event => event.date === today).length;
     // Contar renuncias e incidentes como "incidencias reportadas"
     const incidents = events.filter(event => event.type === 'driver-resignation' || event.type === 'incident').length;
@@ -1069,8 +1118,8 @@ function parseAndImportCSV(csvContent) {
         
         if (char === '"') {
             if (inQuotes && nextChar === '"') {
-                // Comilla escapada ("" dentro de comillas)
-                currentLine += '"';
+                // Comilla escapada ("" dentro de comillas), preservar para parseCSVLine
+                currentLine += '""';
                 i++; // Saltar siguiente comilla
             } else {
                 // Inicio o fin de comillas

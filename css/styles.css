@@ -275,6 +275,15 @@ textarea {
     background-color: #2980b9;
 }
 
+.btn-secondary {
+    background-color: #7f8c8d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #636e72;
+}
+
 .btn-delete {
     background-color: var(--accent-color);
 }
